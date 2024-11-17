@@ -1,0 +1,18 @@
+[package]
+name = "scoring_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.9.0"
+actix-web-prometheus = "0.1.2"
+parking_lot = "0.12.3"
+tokio = { version = "1.45.1", features = ["time"] }
+tracing = "0.1.40"
+tracing-actix-web = "0.7.15"
+tracing-subscriber = { version = "0.3.18", features = ["json"] }
+xgb-rs = { git = "https://github.com/cunialino/xgb-rs.git", version = "3.0.2" }
+common = { path = "../common/" }
+kv-store = { path = "../kv-store/" }
+thiserror = "2.0.12"
+serde_json = "1.0.140"
