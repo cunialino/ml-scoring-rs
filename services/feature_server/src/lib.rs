@@ -1,18 +1,19 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use parking_lot::RwLock;
 
 #[derive(Debug, PartialEq)]
-enum FeatureStoreReadError {
+pub enum FeatureStoreReadError {
     KeyDoesNotExists,
 }
 
-pub(crate) struct FeatureStore {
+#[derive(Default)]
+pub struct FeatureStore {
     store: RwLock<HashMap<String, RwLock<Vec<f32>>>>,
 }
 
 impl FeatureStore {
-    pub(crate) fn get_feature(&self, feature_id: &str) -> Result<Vec<f32>, FeatureStoreReadError> {
+    pub fn get_feature(&self, feature_id: &str) -> Result<Vec<f32>, FeatureStoreReadError> {
         let data = self.store.read();
         let feats_id = data
             .get(feature_id)
@@ -20,10 +21,7 @@ impl FeatureStore {
         let feats = feats_id.read().clone();
         Ok(feats)
     }
-    pub(crate) fn batch_update_features(
-        &self,
-        updates: impl IntoIterator<Item = (String, Vec<f32>)>,
-    ) {
+    pub fn batch_update_features(&self, updates: impl IntoIterator<Item = (String, Vec<f32>)>) {
         for (id, feats) in updates.into_iter() {
             let data = self.store.read();
             let feats_id = data.get(id.as_str());
