@@ -1,0 +1,62 @@
+services:
+  feature_server:
+    build:
+      dockerfile: ./dockerfiles/Dockerfile
+      args:
+        APP_NAME: feature_server
+    volumes:
+      - /home/elia/builds/scoring-model-rs/requests/:/usr/src/app/requests/
+    ports:
+      - "8081:8080"
+    environment:
+      - RUST_LOG=info
+    networks:
+      - ml-network
+
+  # scoring_server:
+  #   build:
+      # dockerfile: ./dockerfiles/Dockerfile
+      # args:
+        # APP_NAME: scoring_server
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - RUST_LOG=info
+  #     - FEATURE_SERVER_URL=http://feature_server:8081 # Env variable to call feature server
+  #   depends_on:
+  #     - feature_server
+  #   networks:
+  #     - ml-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prom.yaml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    networks:
+      - ml-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+    depends_on:
+      - prometheus
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true        # Enable anonymous access
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer     # Set the role for anonymous users (e.g., Viewer or Admin)
+      - GF_SECURITY_ADMIN_USER=admin          # Set a default admin username if needed
+      - GF_SECURITY_ADMIN_PASSWORD=admin      # Set a default admin password if needed
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+    networks:
+      - ml-network
+
+networks:
+  ml-network:
+    driver: bridge
