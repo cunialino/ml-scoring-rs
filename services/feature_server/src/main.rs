@@ -60,6 +60,12 @@ async fn batch_update(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let host = std::env::var("FEATURES_HOST").unwrap_or("127.0.0.1".to_string());
+    let port = std::env::var("FEATURES_PORT").unwrap_or("8080".to_string());
+    let num_workers: usize = std::env::var("FEATURES_WORKERS")
+        .unwrap_or("2".to_string())
+        .parse()
+        .expect("Cannote converto num workers to usize");
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .with_target(false)
@@ -76,7 +82,8 @@ async fn main() -> std::io::Result<()> {
             .route("/feature", web::to(get_feature))
             .route("/batch_update", web::to(batch_update))
     })
-    .bind("0.0.0.0:8080")?
+    .bind(format!("{}:{}", host.as_str(), port.as_str()))?
+    .workers(num_workers)
     .run()
     .await
 }

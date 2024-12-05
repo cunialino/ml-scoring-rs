@@ -1,0 +1,17 @@
+[package]
+name = "scoring_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.9.0"
+actix-web-prometheus = "0.1.2"
+arrow = "53.3.0"
+reqwest = { version = "0.12.9", features = ["json"] }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.133"
+tokio = "1.41.1"
+tracing = "0.1.41"
+tracing-actix-web = "0.7.15"
+tracing-subscriber = "0.3.19"
+xgb-rs = { git = "https://github.com/cunialino/xgb-rs.git" }

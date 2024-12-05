@@ -1,20 +1,22 @@
 math.randomseed(os.time())
 
-local number_of_ids = 50000
-local number_of_features_per_id = 5
+local number_of_ids = 5000
+local number_of_features_per_id = 30
 local number_of_random_bu = 10
-
 local feature_ids = {}
 
 for i = 1, number_of_ids do
   feature_ids[i] = string.format("feature_%d", math.random(1, 500))
 end
 
-local counter = 1
+local addrs = { wrk.lookup("127.0.0.1", "8081")[1], wrk.lookup("127.0.0.1", "8080")[1] }
+
 local threads = {}
+local counter = 1
 
 function setup(thread)
 	thread:set("id", counter)
+	thread.addr = addrs[counter]
 	table.insert(threads, thread)
 	counter = counter + 1
 end
@@ -33,7 +35,7 @@ end
 
 function init(args)
 	if id == 1 then
-    print("Creating fake requests")
+		print("Creating fake requests")
 		for i = 1, number_of_random_bu do
 			local update = generate_update_payload()
 			local filename = string.format("requests/req_%d.json", i)
@@ -46,22 +48,20 @@ function init(args)
 	end
 end
 
--- Helper function to generate a JSON payload for /feature endpoint
-local function generate_feature_payload()
+local function generate_score_payload()
 	local random_id = feature_ids[math.random(#feature_ids)]
-	return string.format('{"id": "%s"}', random_id)
+	return string.format('{"f1": "%s", "f2": %d}', random_id, 1)
 end
-
 function request()
 	-- Randomly pick an endpoint to hit
-  local endpoint
+	local endpoint
 	if id == 1 then
 		endpoint = "/batch_update"
 	else
-		endpoint = "/feature"
+		endpoint = "/score"
 	end
-	if endpoint == "/feature" then
-		return wrk.format("GET", endpoint, { ["Content-Type"] = "application/json" }, generate_feature_payload())
+	if endpoint == "/score" then
+		return wrk.format("GET", endpoint, { ["Content-Type"] = "application/json" }, generate_score_payload())
 	elseif endpoint == "/batch_update" then
 		local fid = math.random(number_of_random_bu)
 		local payload = string.format('{"path": "requests/req_%d.json"}', fid)
@@ -71,7 +71,7 @@ end
 
 function delay()
 	if id == 1 then
-		return 10000
+		return 60000
 	else
 		return 0
 	end

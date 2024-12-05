@@ -4,29 +4,40 @@ services:
       dockerfile: ./dockerfiles/Dockerfile
       args:
         APP_NAME: feature_server
+
     volumes:
       - /home/elia/builds/scoring-model-rs/requests/:/usr/src/app/requests/
     ports:
       - "8081:8080"
     environment:
-      - RUST_LOG=info
+      RUST_LOG: info
+      FEATURES_HOST: 0.0.0.0
+      FEATURES_PORT: 8080
+      FEATURES_WORKERS: 1
     networks:
       - ml-network
 
-  # scoring_server:
-  #   build:
-      # dockerfile: ./dockerfiles/Dockerfile
-      # args:
-        # APP_NAME: scoring_server
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - RUST_LOG=info
-  #     - FEATURE_SERVER_URL=http://feature_server:8081 # Env variable to call feature server
-  #   depends_on:
-  #     - feature_server
-  #   networks:
-  #     - ml-network
+  scoring_server:
+    build:
+      dockerfile: ./dockerfiles/Dockerfile
+      args:
+        APP_NAME: scoring_server
+
+    volumes:
+      - ./assets/:/usr/src/app/assets
+    ports:
+      - "8080:8080"
+    environment:
+      RUST_LOG: info
+      FEATURES_HOST: feature_server
+      FEATURES_PORT: 8080
+      SCORING_HOST: 0.0.0.0
+      SCORING_PORT: 8080
+      SCORING_WORKERS: 4
+    depends_on:
+      - feature_server
+    networks:
+      - ml-network
 
   prometheus:
     image: prom/prometheus:latest
