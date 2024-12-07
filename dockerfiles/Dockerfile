@@ -28,7 +28,7 @@ COPY --from=builder /bin/$APP_NAME /bin/$APP_NAME
 
 WORKDIR /usr/src/app
 
-RUN [ $APP_NAME="scoring_server" ] && apt update && apt install libgomp1 libssl-dev -y
+RUN [ $APP_NAME="scoring_server" ] && apt update && apt install libgomp1 -y
 
 ENV LD_PATH=/usr/lib/x86_64-linux-gnu
 

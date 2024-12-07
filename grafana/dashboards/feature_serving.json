@@ -86,7 +86,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "/feature",
+                  "/score",
                   "/batch_update"
                 ],
                 "prefix": "All except:",
@@ -133,7 +133,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum by(endpoint) (rate(api_incoming_requests{endpoint=\"/feature\", instance=~\"feature_server.*\"}[1m]))",
+          "expr": "sum by(endpoint) (rate(api_incoming_requests{endpoint=\"/score\", instance=~\"feature_server.*\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -143,7 +143,7 @@
           "useBackend": false
         }
       ],
-      "title": "feature Requests / s",
+      "title": "score Requests / s",
       "type": "timeseries"
     },
     {
@@ -210,7 +210,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "/feature",
+                  "/score",
                   "/batch_update"
                 ],
                 "prefix": "All except:",
@@ -355,7 +355,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum by(statuscode, endpoint) (rate(api_response_code{endpoint=\"/feature\", instance=~\"feature_server.*\"}[$__rate_interval]))",
+          "expr": "sum by(statuscode, endpoint) (rate(api_response_code{endpoint=\"/score\", instance=~\"feature_server.*\"}[$__rate_interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -365,7 +365,7 @@
           "useBackend": false
         }
       ],
-      "title": "feature Respons codes / s",
+      "title": "score Respons codes / s",
       "type": "timeseries"
     },
     {
@@ -534,7 +534,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "/feature",
+                  "/score",
                   "/batch_update"
                 ],
                 "prefix": "All except:",
@@ -581,7 +581,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.99, sum by(le, endpoint) (rate(api_response_time_bucket{endpoint=\"/feature\", instance=~\"feature_server.*\"}[$__rate_interval]))) * 1000",
+          "expr": "histogram_quantile(0.99, sum by(le, endpoint) (rate(api_response_time_bucket{endpoint=\"/score\", instance=~\"feature_server.*\"}[$__rate_interval]))) * 1000",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -591,7 +591,7 @@
           "useBackend": false
         }
       ],
-      "title": "feature 99th perc response time [ms]",
+      "title": "score 99th perc response time [ms]",
       "type": "timeseries"
     },
     {
@@ -658,7 +658,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "/feature",
+                  "/score",
                   "/batch_update"
                 ],
                 "prefix": "All except:",

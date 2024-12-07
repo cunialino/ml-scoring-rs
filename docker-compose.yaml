@@ -6,10 +6,12 @@ services:
         APP_NAME: feature_server
 
     volumes:
-      - /home/elia/builds/scoring-model-rs/requests/:/usr/src/app/requests/
+      - ./requests/:/usr/src/app/requests/
+      - ./assets/:/usr/src/app/assets
     ports:
-      - "8081:8080"
+      - "8080:8080"
     environment:
+      OMP_NUM_THREADS: 1
       RUST_LOG: info
       FEATURES_HOST: 0.0.0.0
       FEATURES_PORT: 8080
@@ -17,30 +19,10 @@ services:
     networks:
       - ml-network
 
-  scoring_server:
-    build:
-      dockerfile: ./dockerfiles/Dockerfile
-      args:
-        APP_NAME: scoring_server
-
-    volumes:
-      - ./assets/:/usr/src/app/assets
-    ports:
-      - "8080:8080"
-    environment:
-      RUST_LOG: info
-      FEATURES_HOST: feature_server
-      FEATURES_PORT: 8080
-      SCORING_HOST: 0.0.0.0
-      SCORING_PORT: 8080
-      SCORING_WORKERS: 4
-    depends_on:
-      - feature_server
-    networks:
-      - ml-network
-
   prometheus:
     image: prom/prometheus:latest
+    depends_on:
+      - scoring_server
     volumes:
       - ./prometheus/prom.yaml:/etc/prometheus/prometheus.yml
     command:
