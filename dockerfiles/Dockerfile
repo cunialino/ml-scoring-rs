@@ -34,4 +34,8 @@ ENV LD_PATH=/usr/lib/x86_64-linux-gnu
 
 ENV APP_NAME=$APP_NAME
 
+COPY assets assets
+
+RUN mkdir stupid_json
+
 CMD ["/bin/sh", "-c", "/bin/$APP_NAME"]
