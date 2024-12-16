@@ -1,2 +1,5 @@
 /target
 /requests
+/stupid_json
+/assets
+.*\.tfstate
