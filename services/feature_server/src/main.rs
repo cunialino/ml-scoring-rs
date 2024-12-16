@@ -142,6 +142,12 @@ async fn create_feature(
     }
 }
 
+async fn get_health_check() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body("Heathly!")
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let host = std::env::var("FEATURES_HOST").unwrap_or("127.0.0.1".to_string());
@@ -196,6 +202,7 @@ async fn main() -> std::io::Result<()> {
             .route("/score", web::to(score))
             .route("/batch_update", web::to(batch_update))
             .route("/create_feature", web::to(create_feature))
+            .route("/health", web::to(get_health_check))
     })
     .bind(format!("{}:{}", host.as_str(), port.as_str()))?
     .workers(num_workers)
