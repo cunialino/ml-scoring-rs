@@ -2,4 +2,5 @@
 /requests
 /stupid_json
 /assets
-.*\.tfstate
+*.tfstate
+**/.terraform/*
