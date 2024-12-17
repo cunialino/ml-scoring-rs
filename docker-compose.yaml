@@ -21,8 +21,6 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    depends_on:
-      - scoring_server
     volumes:
       - ./prometheus/prom.yaml:/etc/prometheus/prometheus.yml
     command:
