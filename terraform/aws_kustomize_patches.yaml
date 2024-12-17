@@ -1,0 +1,11 @@
+- op: replace
+  path: /spec/storageClassName
+  value: efs-sc
+- op: remove
+  path: /spec/hostPath
+- op: add 
+  path: /spec/csi
+  value:
+    driver: efs.csi.aws.com
+    volumeHandle: ${efs_id}
+

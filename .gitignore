@@ -5,3 +5,6 @@
 *.tfstate
 **/.terraform/*
 /rocksdb
+/k8s/overlays/aws/patches/rocksdb-pv.yaml
+/k8s/overlays/aws/patches/scoring-patch.yaml
+/k8s/overlays/aws/patches/updates-patch.yaml
