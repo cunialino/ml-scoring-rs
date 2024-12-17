@@ -11,11 +11,16 @@ The project is structured as follows:
 
     - feature_server/: code for a feature store. This is useful for batch features with infrequent updates, where something like redis would be an expansive overkill.
 
-## TODO
+## Notes
 
-Here we keep track of the next steps:
+This is silly/stupid example. I had fun :D.
 
-- [ ] add scoring service
-    - [ ] choose model (in case create rust bindginds for such model when needed)
+Open pain points: 
 
-- [ ] improve prometheus metrics
+- Prometheus: i get wrong metrics from aws, this is due to alb redirecting requests to different tasks. I should implement a centralized prometheus in aws... but i can't be bothered/out of scope
+- Prometheus: should implement some dynimic stuff in for ip. Rn I just get the alb dns out of terraform and manually replace it. Again, was not my goal to begin with
+- EFS: I need a better way to create the features in efs, maybe tokio would be faster as rayon is more oriented to cpu bound tasks.
+
+The project is a bit all over the place, but order was not the goal.
+
+On the bright side: the whole thing does respond in less than 30ms (which was the objective)
