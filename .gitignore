@@ -4,3 +4,4 @@
 /assets
 *.tfstate
 **/.terraform/*
+/rocksdb

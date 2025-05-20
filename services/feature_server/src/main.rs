@@ -1,7 +1,8 @@
-use std::io::Write;
+use std::time::Duration;
 
 use actix_web::{web, App, HttpResponse, HttpServer};
 use actix_web_prometheus::PrometheusMetricsBuilder;
+use rocksdb::DB;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn, Level};
 use xgb_rs::{booster::Booster, dmatrix::DMatrix};
@@ -9,7 +10,7 @@ use xgb_rs::{booster::Booster, dmatrix::DMatrix};
 struct AppState {
     booster: Booster,
     number_of_features: usize,
-    features_path: String,
+    rocksdb: std::sync::Arc<DB>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -43,32 +44,33 @@ struct CreateRequest {
 async fn score(req: web::Json<ScoringRequest>, app_data: web::Data<AppState>) -> HttpResponse {
     debug!("Feature Request {}", req.id.as_str());
     let start = std::time::Instant::now();
-    let features_file = format!(
-        "{}/{}.json",
-        app_data.features_path.as_str(),
-        req.id.as_str()
-    );
-    debug!("Getting features from {}", features_file.as_str());
-    let feats_str = match std::fs::read_to_string(features_file.as_str()) {
-        Ok(feats_str) => feats_str,
-        Err(e) => {
-            debug!("Could not read file {}, {}", features_file.as_str(), e);
-            let duration = start.elapsed().as_millis();
-            info!(duration=duration, response_code = 204);
-            return HttpResponse::NoContent().body("Cannot get features");
+
+    let rb = app_data.rocksdb.clone();
+    let id = req.id.clone();
+
+    let ff = web::block(move || rb.get(id)).await;
+
+    let rocksdb_res = match ff {
+        Ok(val) => val,
+        Err(e) => return HttpResponse::InternalServerError().body(format!("Error awaiting {}", e)),
+    };
+
+    let feats: IdFeatures = match rocksdb_res {
+        Ok(Some(value)) => match serde_json::from_slice(&value) {
+            Ok(feats) => feats,
+            Err(e) => {
+                warn!("Cannot deserialize file {}", e);
+                return HttpResponse::NotAcceptable().body("Cannot deserialize feats");
+            }
+        },
+        Err(e) => return HttpResponse::InternalServerError().body(format!("DB error: {}", e)),
+        Ok(None) => {
+            warn!("Cannot find feature {}", req.id);
+            return HttpResponse::NotFound().body("Feature not found");
         }
     };
-    debug!("Get features {}", req.id.as_str());
-    let id_features: IdFeatures = match serde_json::from_str(feats_str.as_str()) {
-        Ok(idf) => idf,
-        Err(e) => {
-            warn!("Cannot deserialize file {}, {}", features_file.as_str(), e);
-            let duration = start.elapsed().as_millis();
-            info!(duration=duration, response_code = 406);
-            return HttpResponse::NotAcceptable().body("Cannot deserialize feats");
-        }
-    };
-    let features = id_features.features;
+
+    let features = feats.features;
     let booster = &app_data.booster;
     if features.len() != app_data.number_of_features {
         return HttpResponse::BadRequest().body(format!(
@@ -88,50 +90,23 @@ async fn score(req: web::Json<ScoringRequest>, app_data: web::Data<AppState>) ->
         serde_json::to_string(&features).unwrap()
     );
     let duration = start.elapsed().as_millis();
-    info!(duration=duration, response_code = 200);
+    info!(duration = duration, response_code = 200);
     HttpResponse::Ok().json(ScoringResponse { score: *score })
-}
-
-async fn create_feature(
-    create_req: web::Json<CreateRequest>,
-    app_data: web::Data<AppState>,
-) -> HttpResponse {
-    debug!("Creating feature {}", create_req.id.as_str());
-    if create_req.features.len() != app_data.number_of_features {
-        return HttpResponse::BadRequest().body("Not enough features");
-    }
-    let file = match std::fs::File::create(
-        format!(
-            "{}/{}.json",
-            app_data.features_path.as_str(),
-            create_req.id.as_str()
-        )
-        .as_str(),
-    ) {
-        Ok(f) => f,
-        Err(_) => return HttpResponse::BadRequest().body("Cannot open file"),
-    };
-    let feats = IdFeatures {
-        features: create_req.features.clone(),
-    };
-    let mut writer = std::io::BufWriter::new(file);
-    match serde_json::to_writer(&mut writer, &feats) {
-        Ok(_) => (),
-        Err(_) => return HttpResponse::BadRequest().body("Cannot write file"),
-    };
-    match writer.flush() {
-        Ok(_) => {
-            debug!("Created feature {}", create_req.id.as_str());
-            HttpResponse::Ok().into()
-        }
-        Err(_) => HttpResponse::BadRequest().body("Cannot write file"),
-    }
 }
 
 async fn get_health_check() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("application/json")
         .body("Heathly!")
+}
+
+async fn update_db(app_data: web::Data<AppState>) -> HttpResponse {
+    let rocksdb = app_data.rocksdb.clone();
+    let res = rocksdb.try_catch_up_with_primary();
+    match res {
+        Ok(_) => HttpResponse::Ok().body("Db Updated"),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Could not update db: {}", e)),
+    }
 }
 
 #[actix_web::main]
@@ -161,6 +136,43 @@ async fn main() -> std::io::Result<()> {
         .endpoint("/metrics")
         .build()
         .unwrap();
+    // Optimize for read-heavy workload on network storage
+    let mut opts = rocksdb::Options::default();
+    opts.set_max_background_jobs(2); // Reduce background I/O
+    opts.set_max_subcompactions(1);
+    opts.set_disable_auto_compactions(true); // Critical for read-only instances
+    opts.set_use_direct_reads(false); // Better with EFS
+    opts.set_use_direct_io_for_flush_and_compaction(false);
+
+    // Increase cache sizes
+    let cache = rocksdb::Cache::new_lru_cache(512 * 1024 * 1024); // 512MB
+    opts.set_row_cache(&cache);
+    let mut block_opts = rocksdb::BlockBasedOptions::default();
+    block_opts.set_block_cache(&cache);
+    opts.set_block_based_table_factory(&block_opts);
+
+    let rocksdb_handle = std::sync::Arc::new(
+        DB::open_for_read_only(
+            &opts,
+            std::env::var("FEATURES_PATH").unwrap_or("rocksdb".to_owned()),
+            false,
+        )
+        .expect("Could not open rocksdb"),
+    );
+
+    let tokio_clone = rocksdb_handle.clone();
+
+    tokio::spawn(async move {
+        let interval = Duration::from_secs(600); // Adjust the interval as needed
+        loop {
+            tokio::time::sleep(interval).await;
+            info!("Updating db");
+            if let Err(e) = tokio_clone.try_catch_up_with_primary() {
+                eprintln!("Error catching up with primary: {}", e);
+            }
+        }
+    });
+
     HttpServer::new(move || {
         let booster = Booster::new().expect("Cannot load model");
         booster
@@ -169,21 +181,18 @@ async fn main() -> std::io::Result<()> {
         let number_of_features = booster
             .get_number_of_features()
             .expect("Cannot extract models num feats");
+
         let shared_data = web::Data::new(AppState {
             booster,
             number_of_features,
-            features_path: if let Ok(p) = std::env::var("FEATURES_PATH") {
-                p
-            } else {
-                "stupid_json".to_string()
-            },
+            rocksdb: rocksdb_handle.clone(),
         });
         App::new()
             .app_data(shared_data.clone())
             .wrap(prom.clone())
             .route("/score", web::to(score))
-            .route("/create_feature", web::to(create_feature))
             .route("/health", web::to(get_health_check))
+            .route("/update_db", web::to(update_db))
     })
     .bind(format!("{}:{}", host.as_str(), port.as_str()))?
     .workers(num_workers)

@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
-    "services/feature_server", "services/update_features",
+  "services/scoring_server",
+  "services/update_features",
 ]
 resolver = "2"
