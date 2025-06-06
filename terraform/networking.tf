@@ -37,8 +37,10 @@ resource "aws_subnet" "public_subnets" {
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, 1 + count.index)
   availability_zone = element(var.azs, count.index)
   tags = {
-    Project : var.project
-    Name = "${var.project}-public-subnet-${count.index}"
+    Project                                     = var.project
+    Name                                        = "${var.project}-public-subnet-${count.index}"
+    "kubernetes.io/role/elb"                    = "1",
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
 
@@ -48,8 +50,10 @@ resource "aws_subnet" "private_subnets" {
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, 1 + length(var.azs) + count.index)
   availability_zone = element(var.azs, count.index)
   tags = {
-    Project : var.project
-    Name = "${var.project}-private-subnet-${count.index}"
+    Project                                     = var.project
+    Name                                        = "${var.project}-private-subnet-${count.index}"
+    "kubernetes.io/role/internal-elb"           = "1",
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
 
@@ -64,7 +68,7 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.scoring_vpc.id
 
   route {
-    cidr_block = "${var.my_ip}/${var.cidr_block}"
+    cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.public.id
   }
 
@@ -79,34 +83,48 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_security_group" "features_server" {
-  name        = "feature-server-sg"
-  description = "Security group for features server"
+# resource "aws_eip" "nat" {
+#   domain = "vpc"
+# }
+#
+# resource "aws_nat_gateway" "nat" {
+#   allocation_id = aws_eip.nat.id
+#   subnet_id     = aws_subnet.public_subnets[0].id
+#   tags = {
+#     Name = "${var.project}-nat-gateway"
+#   }
+# }
+#
+# resource "aws_route_table" "private" {
+#   vpc_id = aws_vpc.scoring_vpc.id
+#
+#   route {
+#     cidr_block     = "0.0.0.0/0"
+#     nat_gateway_id = aws_nat_gateway.nat.id
+#   }
+#
+#   tags = {
+#     Project = var.project
+#     Name    = "${var.project}-private-rt"
+#   }
+# }
+
+# resource "aws_route_table_association" "private" {
+#   count          = length(aws_subnet.private_subnets)
+#   subnet_id      = aws_subnet.private_subnets[count.index].id
+#   route_table_id = aws_route_table.private.id
+# }
+#
+resource "aws_security_group" "vpce" {
+  name        = "${var.project}-vpce-sg"
+  description = "Allow HTTPS from private subnets"
   vpc_id      = aws_vpc.scoring_vpc.id
 
   ingress {
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.lb_sg.id]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_security_group" "endpoints-sg" {
-  name        = "endppoints-sg"
-  description = "Security group for vpc endpoints"
-  vpc_id      = aws_vpc.scoring_vpc.id
-  ingress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    security_groups = [aws_security_group.features_server.id]
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = aws_subnet.private_subnets[*].cidr_block
   }
   egress {
     from_port   = 0
@@ -125,68 +143,13 @@ resource "aws_security_group" "efs" {
     from_port       = 2049
     to_port         = 2049
     protocol        = "tcp"
-    security_groups = [aws_security_group.features_server.id]
+    cidr_blocks = aws_subnet.private_subnets[*].cidr_block
   }
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_lb" "load_balancer" {
-  name               = "${var.project}-lb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.lb_sg.id]
-  subnets            = aws_subnet.public_subnets.*.id
-}
-
-
-resource "aws_security_group" "lb_sg" {
-  name        = "load-balancer-sg"
-  description = "Security group for features server"
-  vpc_id      = aws_vpc.scoring_vpc.id
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/${var.cidr_block}"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_lb_target_group" "scoring_tg" {
-  name        = "${var.project}-tg"
-  port        = 8080
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.scoring_vpc.id
-  target_type = "ip"
-  health_check {
-    interval            = 5
-    path                = "/health"
-    protocol            = "HTTP"
-    timeout             = 2
-    healthy_threshold   = 2
-    unhealthy_threshold = 5
-  }
-}
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.load_balancer.arn
-  port              = 8080
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.scoring_tg.arn
   }
 }
 
@@ -196,7 +159,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private_subnets.*.id
-  security_group_ids  = [aws_security_group.endpoints-sg.id]
+  security_group_ids  = [aws_security_group.vpce.id]
   tags = {
     Name = "${var.project}-ecr-api-endpoint"
   }
@@ -207,43 +170,51 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private_subnets.*.id
-  security_group_ids  = [aws_security_group.endpoints-sg.id]
+  security_group_ids  = [aws_security_group.vpce.id]
   tags = {
     Name = "${var.project}-ecr-dkr-endpoint"
   }
 }
-resource "aws_vpc_endpoint" "ecs-agent" {
+
+resource "aws_vpc_endpoint" "elb_api" {
   vpc_id              = aws_vpc.scoring_vpc.id
-  service_name        = "com.amazonaws.${var.region}.ecs-agent"
+  service_name        = "com.amazonaws.${var.region}.elasticloadbalancing"
   vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
   subnet_ids          = aws_subnet.private_subnets.*.id
-  security_group_ids  = [aws_security_group.endpoints-sg.id]
+  security_group_ids  = [aws_security_group.vpce.id]
+  private_dns_enabled = true
+
   tags = {
-    Name = "${var.project}-ecs-agent-endpoint"
+    Name = "${var.project}-elb-api-endpoint"
   }
 }
-resource "aws_vpc_endpoint" "ecs-telemetry" {
+
+resource "aws_vpc_endpoint" "ec2_api" {
   vpc_id              = aws_vpc.scoring_vpc.id
-  service_name        = "com.amazonaws.${var.region}.ecs-telemetry"
+  service_name        = "com.amazonaws.${var.region}.ec2"
   vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
   subnet_ids          = aws_subnet.private_subnets.*.id
-  security_group_ids  = [aws_security_group.endpoints-sg.id]
-  tags = {
-    Name = "${var.project}-ecs-telemetry-endpoint"
-  }
-}
-resource "aws_vpc_endpoint" "ecs" {
-  vpc_id              = aws_vpc.scoring_vpc.id
-  service_name        = "com.amazonaws.${var.region}.ecs"
-  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpce.id]
   private_dns_enabled = true
-  security_group_ids  = [aws_security_group.endpoints-sg.id]
+
   tags = {
-    Name = "${var.project}-ecs-endpoint"
+    Name = "${var.project}-ec2-api-endpoint"
   }
 }
+
+resource "aws_vpc_endpoint" "sts_api" {
+  vpc_id              = aws_vpc.scoring_vpc.id
+  service_name        = "com.amazonaws.${var.region}.sts"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private_subnets.*.id
+  security_group_ids  = [aws_security_group.vpce.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.project}-sts-api-endpoint"
+  }
+}
+
 resource "aws_vpc_endpoint" "s3" {
   vpc_id          = aws_vpc.scoring_vpc.id
   service_name    = "com.amazonaws.${var.region}.s3"
@@ -252,14 +223,32 @@ resource "aws_vpc_endpoint" "s3" {
     Name = "${var.project}-s3-endpoint"
   }
 }
-resource "aws_vpc_endpoint" "cloudwatch" {
-  service_name        = "com.amazonaws.${var.region}.logs"
-  vpc_id              = aws_vpc.scoring_vpc.id
-  private_dns_enabled = true
-  security_group_ids  = [aws_security_group.endpoints-sg.id]
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private_subnets.*.id
-  tags = {
-    Name = "${var.project}-cloudwatch-endpoint"
+# resource "aws_vpc_endpoint" "cloudwatch" {
+#   service_name        = "com.amazonaws.${var.region}.logs"
+#   vpc_id              = aws_vpc.scoring_vpc.id
+#   private_dns_enabled = true
+#   security_group_ids  = [aws_security_group.endpoints-sg.id]
+#   vpc_endpoint_type   = "Interface"
+#   subnet_ids          = aws_subnet.private_subnets.*.id
+#   tags = {
+#     Name = "${var.project}-cloudwatch-endpoint"
+#   }
+# }
+resource "aws_security_group" "eks_sg" {
+  name        = "${var.project}-eks-sg"
+  description = "EKS ENI SG"
+  vpc_id      = aws_vpc.scoring_vpc.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["${var.my_ip}/${var.cidr_block}"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
