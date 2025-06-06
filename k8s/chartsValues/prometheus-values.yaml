@@ -1,0 +1,40 @@
+# Disable node-exporter (not supported on Fargate)
+nodeExporter:
+  enabled: false
+
+# Configure Grafana
+grafana:
+  ingress:
+    enabled: false # We'll manage ingress separately
+  grafana.ini:
+    server:
+      # Tell Grafana it is served from /grafana path
+      root_url: "%(protocol)s://%(domain)s/grafana"
+      serve_from_sub_path: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Prometheus server resource requests (must meet Fargate requirements)
+prometheus:
+  prometheusSpec:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+alertmanager:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: false
+# set crds.upgradeJob.image.busybox.registry to docker
+# set crds.upgradeJob.image.kubectl.registry to k8s
+

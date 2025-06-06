@@ -1,0 +1,19 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+    extraMounts:
+      - hostPath: ./rocksdb
+        containerPath: /rocksdb
+    labels:
+      topology.kubernetes.io/zone: eu-west-1a
+      topology.kubernetes.io/region: eu-west-1
+
+  - role: worker
+    extraMounts:
+      - hostPath: ./rocksdb
+        containerPath: /rocksdb
+    labels:
+      topology.kubernetes.io/zone: eu-west-1a
+      topology.kubernetes.io/region: eu-west-1

@@ -1,0 +1,17 @@
+# https://kubernetes.io/docs/concepts/services-networking/service/
+apiVersion: v1
+kind: Service
+metadata:
+  name: scoring
+  namespace: scoring
+  labels:
+    app: scoring
+spec:
+  selector:
+    app: scoring
+  type: ClusterIP
+  ports:
+  - name: scoring
+    protocol: TCP
+    port: 8080
+    targetPort: scoring
