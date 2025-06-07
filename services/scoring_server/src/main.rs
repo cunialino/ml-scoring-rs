@@ -13,6 +13,12 @@ pub enum AppError {
     BlockingErr(#[from] actix_web::error::BlockingError),
     #[error("Id {0} does not have the right amount of features")]
     WrongFeaturesCount(String),
+    #[error("No score returned")]
+    EmptyScore,
+    #[error("XGBoost Error {0}")]
+    XGBErr(#[from] xgb_rs::booster::XGBoostError),
+    #[error("DMatrix Error {0}")]
+    DMATErr(#[from] xgb_rs::dmatrix::DMatrixError),
 }
 
 impl ResponseError for AppError {
@@ -36,6 +42,15 @@ impl ResponseError for AppError {
                 "Id {} does not have the right amount of features",
                 id
             )),
+            AppError::EmptyScore => {
+                HttpResponse::InternalServerError().body("Empty score")
+            }
+            AppError::XGBErr(e) => {
+                HttpResponse::InternalServerError().body(format!("XGBoost Error: {}", e))
+            }
+            AppError::DMATErr(e) => {
+                HttpResponse::InternalServerError().body(format!("DMatrix Error: {}", e))
+            }
         }
     }
 }
@@ -63,23 +78,14 @@ async fn score(
     if features.len() != app_data.number_of_features {
         return Err(AppError::WrongFeaturesCount(req.id.clone()));
     }
-    let score = web::block(move || {
-        let dmat = DMatrix::try_from_data(features.as_ref(), 1, features.len() as u64)
-            .expect("Cannot create dmatrix");
-        let predict = booster.predict(&dmat);
-        let vec = predict.expect("Cannot compute score");
-        let score = vec.first().unwrap().to_owned();
-        debug!(
-            "Computed score {} for id {} with features {}",
-            score,
-            req.id.as_str(),
-            serde_json::to_string(&features).unwrap()
-        );
-        score
+    let score = web::block(move || -> Result<f32, AppError> {
+        let dmat = DMatrix::try_from_data(features.as_ref(), 1, features.len() as u64)?;
+        let predict = booster.predict(&dmat)?;
+        Ok(predict.first().ok_or(AppError::EmptyScore)?.to_owned())
     })
-    .await?;
+    .await??;
     let duration = start.elapsed().as_millis();
-    info!(duration = duration, response_code = 200);
+    info!(feature_id = req.id, duration = duration, response_code = 200);
     Ok(HttpResponse::Ok().json(common::ScoringResponse { score }))
 }
 
@@ -90,7 +96,9 @@ async fn get_health_check() -> HttpResponse {
 }
 
 async fn update_features(app_data: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+    info!("Updating features");
     app_data.rocksdb.catchup()?;
+    info!("Featuers updated");
     Ok(HttpResponse::Ok().body("Feature updated"))
 }
 
