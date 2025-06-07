@@ -3,5 +3,7 @@
 members = [
   "services/scoring_server",
   "services/update_features",
+  "services/kv-store",
+  "services/common",
 ]
-resolver = "2"
+resolver = "3"

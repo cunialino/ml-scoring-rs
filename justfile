@@ -48,7 +48,7 @@ aws-deploy:
 
 
 build-images:
-  docker build . -f dockerfiles/Dockerfile --build-arg APP_NAME=feature_server -t ml-scoring-server:dev
+  docker build . -f dockerfiles/Dockerfile --build-arg APP_NAME=scoring_server -t ml-scoring-server:dev
   docker build . -f dockerfiles/Dockerfile --build-arg APP_NAME=update_features -t ml-update-features:dev
   kind load docker-image ml-scoring-server:dev -n {{KIND_NAME}}
   kind load docker-image ml-update-features:dev -n {{KIND_NAME}}

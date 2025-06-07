@@ -1,27 +1,11 @@
 use futures::future::join_all;
 use rand::Rng;
-use rocksdb::{Options, WriteBatch, DB};
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
 
 const N_IDS: usize = 15_000_000;
 const N_COLS: usize = 30;
 const BATCH_SIZE: usize = 500000; // number of puts per batch
-
-#[derive(Serialize, Deserialize)]
-struct IdFeatures {
-    features: Vec<f32>,
-}
-
-/// Opens or creates a RocksDB with optimized settings
-fn open_db(path: &str) -> DB {
-    let mut opts = Options::default();
-
-    opts.create_if_missing(true);
-
-    DB::open(&opts, path).expect("failed to open RocksDB")
-}
 
 #[tokio::main]
 async fn main() {
@@ -46,7 +30,8 @@ async fn main() {
 
     // Get RocksDB path from env
     let db_path = std::env::var("FEATURES_PATH").unwrap_or_else(|_| "rocksdb".to_string());
-    let db = Arc::new(open_db(&db_path));
+    let kv = kv_store::KvStore::try_new_primary(&db_path, 8 * 1024 * 1024).unwrap();
+    let db = Arc::new(kv);
 
     // Concurrency limiter
     let semaphore = Arc::new(tokio::sync::Semaphore::new(10));
@@ -62,19 +47,23 @@ async fn main() {
             let _permit = sem.acquire().await.unwrap();
             let batch_start = Instant::now();
 
-            let mut batch = WriteBatch::default();
+            let mut my_stuff = Vec::with_capacity(slice.len());
+            let mut keys = Vec::with_capacity(slice.len());
             for &i in &slice {
                 // generate features
                 let features: Vec<f32> = (0..N_COLS)
                     .map(|_| rand::thread_rng().gen::<f32>() * 100.)
                     .collect();
-                let feats = IdFeatures { features };
-                // serialize with serde_json
-                let key = format!("feature_{}", i);
-                let value = serde_json::to_vec(&feats).expect("JSON serialize failed");
-                batch.put(key.as_bytes(), &value);
+
+                keys.push(format!("feature_{}", i));
+
+                // SAFETY: Because we reserved capacity, `keys` will never move
+                //         or reallocate, so this raw pointer stays valid.
+                let last_ptr: *const String = keys.last().unwrap();
+                let key_str: &str = unsafe { (*last_ptr).as_str() };
+                my_stuff.push((key_str, common::IdFeatures { features }));
             }
-            db_clone.write(batch).expect("Batch write failed");
+            db_clone.write_features(&my_stuff).unwrap();
 
             let duration = batch_start.elapsed();
             println!(
@@ -89,7 +78,7 @@ async fn main() {
     // Wait for all batches
     let _ = join_all(batch_tasks).await;
 
-    db.compact_range(None::<&[u8]>, None::<&[u8]>);
+    db.finalize_writes();
     let total_duration = start_time.elapsed();
     println!("All {} features written in {:?}", N_IDS, total_duration);
     println!("Ending at: {:?}", Instant::now());
