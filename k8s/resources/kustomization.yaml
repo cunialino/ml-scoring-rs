@@ -8,5 +8,6 @@ resources:
   - ./ml-scoring/service_monitor.yaml
   - ./misc.yaml
   - ./rocksdb.yaml
+  - ./create_features/roles.yaml
   - ./create_features/job.yaml
   - ./grafana.yaml

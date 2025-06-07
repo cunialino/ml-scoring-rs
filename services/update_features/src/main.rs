@@ -1,14 +1,59 @@
+use anyhow::Ok;
 use futures::future::join_all;
 use rand::Rng;
 use std::sync::Arc;
 use std::time::Instant;
+use kube::{Client, api::{Api, ListParams}};
+use k8s_openapi::api::core::v1::{Pod, Service};
+use reqwest::Client as HttpClient;
 
 const N_IDS: usize = 15_000_000;
 const N_COLS: usize = 30;
-const BATCH_SIZE: usize = 500000; // number of puts per batch
+const BATCH_SIZE: usize = 500000;
+
+async fn update_features_all_pods() -> anyhow::Result<()> {
+    let k8s_client = Client::try_default().await?;
+    let http_client = HttpClient::new();
+
+    // Get the Service
+    let services: Api<Service> = Api::namespaced(k8s_client.clone(), "scoring");
+    let service_name = "scoring";
+    let svc = services.get(service_name).await?;
+
+    // Get the selector
+    let selector = svc
+        .spec
+        .and_then(|spec| spec.selector)
+        .ok_or_else(|| anyhow::anyhow!("Service has no selector"))?;
+
+    // Build label selector string
+    let selector_string = selector
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    // List Pods with that selector
+    let pods: Api<Pod> = Api::namespaced(k8s_client.clone(), "scoring");
+    let pod_list = pods
+        .list(&ListParams::default().labels(&selector_string))
+        .await?;
+
+    // For each Pod, send HTTP request
+    for pod in pod_list.items {
+        if let Some(pod_ip) = pod.status.and_then(|status| status.pod_ip) {
+            let url = format!("http://{}:8080/update_features", pod_ip);
+            println!("Sending request to {}", url);
+            let res = http_client.post(&url).send().await?;
+            println!("Response: {}", res.status());
+        }
+    }
+
+    Ok(())
+}
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let start_time = Instant::now();
     println!("Starting at: {:?}", start_time);
 
@@ -81,5 +126,8 @@ async fn main() {
     db.finalize_writes();
     let total_duration = start_time.elapsed();
     println!("All {} features written in {:?}", N_IDS, total_duration);
+    println!("Updating pods");
+    update_features_all_pods().await?;
     println!("Ending at: {:?}", Instant::now());
+    Ok(())
 }

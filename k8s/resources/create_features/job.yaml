@@ -6,6 +6,7 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: feature-notifier
       containers:
         - name: feature-writer
           image: ml-update-features:dev
@@ -13,10 +14,10 @@ spec:
           resources:
             requests:
               cpu: 4
-              memory: 2G
+              memory: 7.7G
             limits:
               cpu: 4
-              memory: 2G
+              memory: 7.7G
           env:
             - name: FEATURES_PATH
               value: /usr/src/app/rocksdb
