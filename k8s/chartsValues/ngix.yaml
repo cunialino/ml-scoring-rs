@@ -5,6 +5,8 @@ controller:
       service.beta.kubernetes.io/aws-load-balancer-type: external
       service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
       service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing # or "internal"
+      service.kubernetes.io/topology-mode: auto
+    externalTrafficPolicy: Local
 
   autoscaling:
     enabled: true
@@ -33,3 +35,16 @@ controller:
     limits:
       cpu: 250m
       memory: 256Mi
+
+  topologySpreadConstraints:
+    - maxSkew: 1 # Allows for at most one more pod in one AZ than another
+      topologyKey: topology.kubernetes.io/zone # Spread across Availability Zones
+      whenUnsatisfiable: DoNotSchedule # Pods won't be scheduled if this constraint can't be met
+                                       # Consider "ScheduleAnyway" if absolute availability is higher priority than strict spreading
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: controller
+          app.kubernetes.io/instance: ngix-ingress
+          app.kubernetes.io/name: ingress-nginx
+
+  # enableTopologyAwareRouting: true
