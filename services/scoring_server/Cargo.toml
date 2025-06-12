@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.9.0"
-actix-web-prometheus = "0.1.2"
 parking_lot = "0.12.3"
 tokio = { version = "1.45.1", features = ["time"] }
 tracing = "0.1.40"
@@ -16,3 +15,5 @@ common = { path = "../common/" }
 kv-store = { path = "../kv-store/" }
 thiserror = "2.0.12"
 serde_json = "1.0.140"
+actix-web-prom = "0.10.0"
+prometheus = "0.14.0"
