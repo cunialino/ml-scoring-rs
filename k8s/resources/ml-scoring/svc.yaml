@@ -2,6 +2,8 @@
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    service.kubernetes.io/topology-mode: auto
   name: scoring
   namespace: scoring
   labels:
