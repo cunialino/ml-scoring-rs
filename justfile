@@ -60,3 +60,36 @@ delete-cluster:
 restart-cluster:
   just --justfile {{justfile()}} delete-cluster
   just --justfile {{justfile()}} start-cluster
+
+stress-test rate="100" duration="30s":
+  #!/usr/bin/env bash
+  set -u
+
+  NAMESPACE="network"
+  SERVICE_NAME="ngix-ingress-ingress-nginx-controller" # Corrected service name based on your example
+
+  VEGA_RATE={{rate}}
+  VEGA_DURATION={{duration}}
+  LB_HOST=$(kubectl get svc -n network ngix-ingress-ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+  IP_ADDRESS=$(kubectl get svc -n "$NAMESPACE" "$SERVICE_NAME" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+  if [[ -n "$LB_HOST" ]]; then
+    TARGET_URL="http://$LB_HOST/score"
+  else
+    TARGET_URL="http://$IP_ADDRESS/score"
+  fi
+
+  NUM_TARGETS=$(echo "$VEGA_RATE * $(echo "$VEGA_DURATION" | sed 's/s//') * 1.1" | bc | cut -d'.' -f1) # 10% buffer
+  TARGETS_FILE="vegeta_targets_$(date +%s%N).json"
+
+  echo "Starting Vegeta attack from $TARGETS_FILE..."
+
+  cargo run --release -p requests-generator -- $TARGET_URL \
+  | vegeta attack \
+        -lazy \
+        -format=json \
+        -rate=$VEGA_RATE \
+        -duration=$VEGA_DURATION \
+        -connections=0 \
+        -workers=0 \
+        -timeout=5s \
+  | vegeta report
