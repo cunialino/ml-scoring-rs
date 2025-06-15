@@ -4,6 +4,6 @@ members = [
   "services/scoring_server",
   "services/update_features",
   "services/kv-store",
-  "services/common",
+  "services/common", "services/requests-generator",
 ]
 resolver = "3"
