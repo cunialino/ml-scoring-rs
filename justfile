@@ -38,6 +38,7 @@ install-charts env="local":
 local-deploy:
   kind export kubeconfig --name ml-scoring
   just --justfile {{justfile()}} install-charts
+  just --justfile {{justfile()}} generate-metallb-manifest
   helm upgrade --wait --install metallb metallb/metallb --namespace metallb-system --create-namespace
   kubectl apply -k k8s/overlays/dev
 
@@ -93,3 +94,49 @@ stress-test rate="100" duration="30s":
         -workers=0 \
         -timeout=5s \
   | vegeta report
+
+generate-metallb-manifest:
+  #!/bin/bash
+
+  OUTPUT_PATH="./k8s/overlays/dev/metallb.yaml"
+
+  mkdir -p "$(dirname "$OUTPUT_PATH")"
+
+  IPV4_SUBNET=$(docker inspect kind | jq -r '.[].IPAM.Config[] | select(.Subnet | contains(":_") | not) | .Subnet' | head -n 1)
+  IPV4_GATEWAY=$(docker inspect kind | jq -r '.[].IPAM.Config[] | select(.Subnet | contains(":_") | not) | .Gateway' | head -n 1)
+
+  if [[ -z "$IPV4_SUBNET" || -z "$IPV4_GATEWAY" ]]; then
+      echo "Error: Could not determine IPv4 Subnet and/or Gateway from 'docker inspect kind'." >&2
+      exit 1
+  fi
+
+  NETWORK_PREFIX=$(echo "$IPV4_GATEWAY" | awk -F'.' '{print $1"."$2"."$3}')
+
+  IP_POOL_START="$NETWORK_PREFIX.0"
+  IP_POOL_END="$NETWORK_PREFIX.24"
+  IP_ADDRESS_RANGE="${IP_POOL_START}-${IP_POOL_END}"
+
+  echo "Detected IPv4 Subnet: $IPV4_SUBNET"
+  echo "Detected IPv4 Gateway: $IPV4_GATEWAY"
+  echo "Generated MetalLB IP Address Pool Range: $IP_ADDRESS_RANGE"
+  echo "Saving MetalLB configuration to: $OUTPUT_PATH"
+  echo ""
+
+  cat <<EOF > "$OUTPUT_PATH"
+  apiVersion: metallb.io/v1beta1
+  kind: IPAddressPool
+  metadata:
+    name: default
+    namespace: metallb-system
+  spec:
+    addresses:
+      - ${IP_ADDRESS_RANGE}
+  ---
+  apiVersion: metallb.io/v1beta1
+  kind: L2Advertisement
+  metadata:
+    name: default
+    namespace: metallb-system
+  EOF
+
+  echo "MetalLB configuration successfully saved to $OUTPUT_PATH"
