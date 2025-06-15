@@ -217,7 +217,7 @@ async fn main() -> std::io::Result<()> {
     })
     .bind(format!("{}:{}", host.as_str(), port.as_str()))?
     .workers(num_workers)
-    .worker_max_blocking_threads(num_workers * 2)
+    .worker_max_blocking_threads(num_workers * 6)
     .run()
     .await
 }
