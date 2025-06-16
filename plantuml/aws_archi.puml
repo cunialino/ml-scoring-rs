@@ -1,0 +1,62 @@
+@startuml aws_architecture
+' Uncomment for dark mode
+'!$AWS_DARK = true
+
+top to bottom direction
+
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v19.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/AWSSimplified.puml
+!include AWSPuml/Groups/AWSCloud.puml
+!include AWSPuml/Groups/VPC.puml
+!include AWSPuml/Groups/AvailabilityZone.puml
+!include AWSPuml/Groups/PublicSubnet.puml
+!include AWSPuml/Groups/PrivateSubnet.puml
+!include AWSPuml/NetworkingContentDelivery/VPCInternetGateway.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingNetworkLoadBalancer.puml
+!include AWSPuml/Storage/EFS.puml
+!include AWSPuml/Compute/EC2.puml
+!include AWSPuml/Containers/EKSCloud.puml
+!include AWSPuml/Containers/ElasticContainerRegistry.puml
+!include AWSPuml/NetworkingContentDelivery/VPCEndpoints.puml
+
+hide stereotype
+skinparam linetype ortho
+
+AWSCloudGroup(cloud, "AWS Cloud") {
+  VPCGroup(vpc, "scoring_vpc\n10.0.0.0/16") {
+
+    VPCInternetGateway(igw, "Internet Gateway", "")
+
+    VPCEndpoints(vpce, "VPC Endpoints\n• ECR\n• EC2\n• STS\n• ELB\n• CloudWatch\n• S3", "")
+    
+    AvailabilityZoneGroup(az1, "eu‑west‑1a") {
+      PublicSubnetGroup(pub1, "Public Subnet\n10.0.1.0/24") {
+        ElasticLoadBalancingNetworkLoadBalancer(nlb1, "NLB\nAWS LB Controller", "")
+      }
+      PrivateSubnetGroup(priv1, "Private Subnet\n10.0.3.0/24") {
+        EKSCloud(eks1, "EKS Cluster\nml‑scoring", "")
+        ElasticContainerRegistry(ecr1, "ECR Repo\nimages", "")
+        EFS(efs1, "EFS File System\nrocksdb", "")
+      }
+    }
+
+    AvailabilityZoneGroup(az2, "eu‑west‑1b") {
+      PublicSubnetGroup(pub2, "Public Subnet\n10.0.2.0/24") {
+        ElasticLoadBalancingNetworkLoadBalancer(nlb2, "NLB\nAWS LB Controller", "")
+      }
+      PrivateSubnetGroup(priv2, "Private Subnet\n10.0.4.0/24") {
+        EKSCloud(eks2, "EKS Cluster\nml‑scoring", "")
+        ElasticContainerRegistry(ecr2, "ECR Repo\nimages", "")
+        EFS(efs2, "EFS File System\nrocksdb", "")
+      }
+    }
+    nlb1 .[hidden]u.> igw
+    nlb2 .[hidden]u.> igw
+    priv1 .up.> pub1
+    priv2 .up.> pub2
+    priv1 .down.> vpce
+    priv2 .down.> vpce
+  }
+}
+@enduml

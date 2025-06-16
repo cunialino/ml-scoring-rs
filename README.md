@@ -3,13 +3,33 @@ Personal PoC of scoring Machine Learning models with Rust.
 
 The project is structured as follows:
 
-- docker-compose.yaml: defines the services (features, score, grafana, prometheus)
-- dockerfiles/: single docker file for rust services
-- prometheus/: configuration files for prometheus
-- grafana/: configuration files for grafana
-- services/: Rust code 
+- services: directory with all my rust code 
+    - common: simple structs I need in many places, they represent the requests
+    - kv-store: rocksdb backed key value store for features
+    - scoring_server: actix webserver that scores requests with xgboost
+    - update_features: simple script to generate random features and write the 
+    rocksdb kv-store.
+    - requests-generator: I use this to print random requests for the score endpoint.
+    I feed these to vegeta (see justfile). Standard cli tools were too slow.
 
-    - feature_server/: code for a feature store. This is useful for batch features with infrequent updates, where something like redis would be an expansive overkill.
+- k8s: all my k8s files of course 
+    - resources: base resources, needed for both loval dev and aws eks
+    - overlays: kustomize overlays, diveded in dev for local dev and aws for 
+    deploying to aws eks
+
+- terraform: the whole aws infra (this needs a bit of cleaning)
+- dockerfiles: the dockerfile needed for the project
+
+## AWS Architecture
+
+The aws architecture is deployed via terraform, here we provide a highlevel diagram:
+
+![AWS Architecture](plantuml/aws_architecture.png)
+
+
+I tried to avoid the whole nat gateway thing using VPC Endpoints to save some
+money as I was paying for this myself.
+This was painful honestly, had to push all the helm charts images into my ecr.
 
 ## Notes
 
