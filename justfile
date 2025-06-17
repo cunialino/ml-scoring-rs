@@ -140,3 +140,10 @@ generate-metallb-manifest:
   EOF
 
   echo "MetalLB configuration successfully saved to $OUTPUT_PATH"
+
+add-charts:
+  helm repo add ngix-ingress https://kubernetes.github.io/ingress-nginx
+  helm repo add metallb https://metallb.github.io/metallb
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm repo add kube-metrics https://charts.bitnami.com/bitnami
+
