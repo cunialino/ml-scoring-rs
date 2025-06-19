@@ -66,8 +66,8 @@ stress-test rate="100" duration="30s":
   #!/usr/bin/env bash
   set -u
 
-  NAMESPACE="network"
-  SERVICE_NAME="ngix-ingress-ingress-nginx-controller" # Corrected service name based on your example
+  NAMESPACE="projectcontour"
+  SERVICE_NAME="contour-envoy" # Corrected service name based on your example
 
   VEGA_RATE={{rate}}
   VEGA_DURATION={{duration}}

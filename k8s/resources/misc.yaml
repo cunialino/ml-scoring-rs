@@ -1,55 +1,65 @@
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# 1) ROOT proxy - the only one with a virtualhost
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
 metadata:
-  name: score-ep-ingress
-  namespace: scoring
-
+  name: global-root
+  namespace: projectcontour   # wherever your Contour control plane lives
 spec:
-  ingressClassName: nginx
-  rules:
-    - http:
-        paths:
-          - path: /score
-            pathType: Prefix
-            backend:
-              service:
-                name: scoring
-                port:
-                  number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: scoring-ingress
-  namespace: scoring
+  includes:
+    - name: score-child
+      namespace: scoring
+      conditions:
+        - prefix: /score
+    - name: scoring-root
+      namespace: scoring
+      conditions:
+        - prefix: /
+    - name: grafana-child
+      namespace: monitoring
+      conditions:
+        - prefix: /grafana
 
-spec:
-  ingressClassName: nginx
-  rules:
-    - http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: scoring
-                port:
-                  number: 8080
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# 2) CHILD proxy for /score
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
 metadata:
-  name: monitoring-ingress
+  name: score-child
+  namespace: scoring
+spec:
+  routes:
+    - conditions:
+        - prefix: /score
+      services:
+        - name: scoring
+          port: 8080
+
+---
+# 3) CHILD proxy for /
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: scoring-root
+  namespace: scoring
+spec:
+  routes:
+    - conditions:
+        - prefix: /
+      services:
+        - name: scoring
+          port: 8080
+
+---
+# 4) CHILD proxy for /grafana
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: grafana-child
   namespace: monitoring
 spec:
-  ingressClassName: nginx
-  rules:
-    - http:
-        paths:
-          - path: /grafana
-            pathType: Prefix
-            backend:
-              service:
-                name: prometheus-grafana
-                port:
-                  number: 3000
+  routes:
+    - conditions:
+        - prefix: /grafana
+      services:
+        - name: prometheus-grafana
+          port: 3000

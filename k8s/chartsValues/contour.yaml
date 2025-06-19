@@ -1,0 +1,30 @@
+# values.yaml
+replicaCount: 2
+
+envoy:
+  service:
+    # Use Network Load Balancer (as you're already on NLB via AWS LB Controller)
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+      service.beta.kubernetes.io/aws-load-balancer-type: external
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing # or "internal"
+      service.kubernetes.io/topology-mode: auto
+    externalTrafficPolicy: Local
+
+contour:
+  extraArgs:
+    # If you want to use Gateway API instead of Ingress:
+    # - --gateway-api
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# enable Prometheus metrics scraping on Envoy
+envoyMetrics:
+  enabled: true
+  port: 8002
