@@ -32,7 +32,7 @@ install-charts env="local":
     echo "nothing"
   fi
   helm upgrade --wait --install prometheus prometheus-community/kube-prometheus-stack -f k8s/chartsValues/prometheus-values.yaml --namespace monitoring --create-namespace $EXTRA_ARG
-  helm upgrade --install ngix-ingress ngix-ingress/ingress-nginx -f k8s/chartsValues/ngix.yaml --namespace network --create-namespace $EXTRA_ARG_NGINX
+  helm upgrade --install --create-namespace contour bitnami/contour  --namespace projectcontour -f k8s/chartsValues/contour.yaml $EXTRA_ARG
   helm upgrade --install kube-metrics kube-metrics/metrics-server -f k8s/chartsValues/kube-metrics.yaml -n kube-system --set global.security.allowInsecureImages=true $EXTRA_ARG
 
 local-deploy:
@@ -72,7 +72,7 @@ stress-test rate="100" duration="30s":
   VEGA_RATE={{rate}}
   VEGA_DURATION={{duration}}
   LB_HOST=$(kubectl get svc -n network ngix-ingress-ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-  IP_ADDRESS=$(kubectl get svc -n "$NAMESPACE" "$SERVICE_NAME" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+  IP_ADDRESS="k8s-kind.com"
   if [[ -n "$LB_HOST" ]]; then
     TARGET_URL="http://$LB_HOST/score"
   else

@@ -2,25 +2,19 @@
 apiVersion: projectcontour.io/v1
 kind: HTTPProxy
 metadata:
-  name: global-root
-  namespace: projectcontour   # wherever your Contour control plane lives
+  name: scoring
+  namespace: scoring
 spec:
+  virtualhost:
+    fqdn: '*.com'
   includes:
     - name: score-child
       namespace: scoring
-      conditions:
-        - prefix: /score
-    - name: scoring-root
+    - name: health-child
       namespace: scoring
-      conditions:
-        - prefix: /
     - name: grafana-child
       namespace: monitoring
-      conditions:
-        - prefix: /grafana
-
 ---
-# 2) CHILD proxy for /score
 apiVersion: projectcontour.io/v1
 kind: HTTPProxy
 metadata:
@@ -35,22 +29,20 @@ spec:
           port: 8080
 
 ---
-# 3) CHILD proxy for /
 apiVersion: projectcontour.io/v1
 kind: HTTPProxy
 metadata:
-  name: scoring-root
+  name: health-child
   namespace: scoring
 spec:
   routes:
     - conditions:
-        - prefix: /
+        - prefix: /health
       services:
         - name: scoring
           port: 8080
 
 ---
-# 4) CHILD proxy for /grafana
 apiVersion: projectcontour.io/v1
 kind: HTTPProxy
 metadata:
@@ -62,4 +54,4 @@ spec:
         - prefix: /grafana
       services:
         - name: prometheus-grafana
-          port: 3000
+          port: 80
